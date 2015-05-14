@@ -1,3 +1,7 @@
+"""
+Script to apply an XSLT transformation to TEI files
+The script was written to as part of a research project at TCD
+"""
 from lxml import etree
 import zipfile, datetime
 import os, re, types
