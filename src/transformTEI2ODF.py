@@ -8,33 +8,9 @@ import os, re, types
 from StringIO import StringIO
 from ezodf import newdoc, Paragraph, Heading, Sheet, text
 
-file_path = "C:" + os.sep + "Users" + os.sep + "Rombli" + os.sep + "Dropbox" + os.sep + "XML" + os.sep + "Transcriptions" + os.sep + "Masterfiles"
-
-
-
-xml_dirs = [
-    "london_british_library_ms_cotton_nero_E1",
-    "paris_BnF_ms_lat17626"
-
-
-    ]
-
-current_ms = 1
-
-xslt_file = "tei2odf-Freeman.xsl"
-
-
-xml_file = file_path + os.sep + xml_dirs[current_ms] + os.sep + xml_dirs[current_ms] + ".xml"
-
-
-result_file = xml_dirs[current_ms] + ".odt"
-
-picture_dir = file_path + os.sep + xml_dirs[current_ms]
-
-
-def open_file(fl=xml_file):
+def open_file(xml_file):
     #do not encode in unicode when opening, e.g. with codecs module
-    with open(fl, "r") as f:
+    with open(xml_file, "r") as f:
         try:
             xml = StringIO(f.read())
             parser = etree.XMLParser(encoding="utf-8", resolve_entities=False)
@@ -59,15 +35,11 @@ def print_info(archive_name):
         print '\tUncompressed:\t', info.file_size, 'bytes'
         print
 
-
-
-
-if __name__ == "__main__":
-    
+def tei2odf(xml_file, xslt_file, result_file):
     xslt_tree = open_file(xslt_file)
     
     transform = etree.XSLT(xslt_tree)
-
+    
     #transform the TEI transcriptions with XSLT to odt XML format
     doc = open_file(xml_file)
     result_tree = transform(doc)
@@ -87,18 +59,41 @@ if __name__ == "__main__":
 
     odt.save()
 
-    
+def addImages2odt(odt_file, picture_dir):
     #add images to the odt file
-    z = zipfile.ZipFile(result_file, mode="a")
-    print help(z)
+    z = zipfile.ZipFile(odt_file, mode="a")
     for root, dirs, files in os.walk(picture_dir):
         for file in files:
             z.write(os.path.join(root, file), os.path.join("Pictures", file) ,compress_type=zipfile.ZIP_DEFLATED)
 
     z.close()
 
-    #print a report of the content of the odt file
-    #print_info(result_file)
+
+
+if __name__ == "__main__":
+    
+    file_path = "C:" + os.sep + "Users" + os.sep + "Rombli" + os.sep + "Dropbox" + os.sep + "XML" + os.sep + "Transcriptions" + os.sep + "Masterfiles"
+
+    xslt_file = "tei2odf-Freeman.xsl"
+
+    xml_dirs = [
+    "dublin_tcd_library_ms_52",
+    "london_british_library_ms_cotton_nero_E1",
+    "paris_BnF_ms_lat17626"
+    ]
+
+    for d in xml_dirs:
+        xml_file = file_path + os.sep + d + os.sep + d + ".xml"
+        result_file = d + ".odt"
+        picture_dir = file_path + os.sep + d + os.sep + "characters"
+
+        print xml_file
+        tei2odf(xml_file, xslt_file, result_file)
+        
+        addImages2odt(result_file, picture_dir)
+        
+        #print a report of the content of the odt file
+        #print_info(result_file)
     
     print "Done!"
     print "File " + result_file
