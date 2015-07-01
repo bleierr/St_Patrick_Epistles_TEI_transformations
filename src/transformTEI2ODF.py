@@ -76,10 +76,13 @@ if __name__ == "__main__":
 
     xslt_file = "tei2odf-Freeman.xsl"
 
-    xml_dirs = [
-    "dublin_tcd_library_ms_52",
+    """dublin_tcd_library_ms_52",
     "london_british_library_ms_cotton_nero_E1",
-    "paris_BnF_ms_lat17626"
+    "paris_BnF_ms_lat17626"""
+
+
+    xml_dirs = [
+        "arras_bm_ms_450"
     ]
 
     for d in xml_dirs:

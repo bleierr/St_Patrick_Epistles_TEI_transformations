@@ -415,6 +415,24 @@
     </xsl:template>
     
     
+    <xsl:template match="tei:seg[@rend='ligature']">
+        <!-- if the g element contains text it represents a ligature -->
+        <text:span text:style-name="T2">
+            <text:span text:style-name="T1">
+            <xsl:apply-templates></xsl:apply-templates>
+            </text:span>
+        </text:span>
+    </xsl:template>
+    
+    <xsl:template match="tei:seg[@rend='uncial']">
+        <!-- if the g element contains text it represents a ligature -->
+        <text:span text:style-name="T2">
+            
+                <xsl:apply-templates></xsl:apply-templates>
+            
+        </text:span>
+    </xsl:template>
+    
     
     <xsl:template match="tei:g[@ref][text()]">
         <!-- if the g element contains text it represents a ligature -->
