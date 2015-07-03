@@ -138,30 +138,217 @@ class Test(unittest.TestCase):
         self.assertEqual("""<w xml:id="w1-3" lemma="per" type="prep">Per</w>""", etree.tostring(w13).strip(), """Error: the converstion of p13
                             to string should result in the string '<w xml:id="w1-3" lemma="per" type="prep">Per</w>', but is: '{0}'""".format(etree.tostring(w13).strip()))
 
-    def test_generate_valid_xml_line(self):
+    def test_split_on_lbs(self):
         t1 = glg.open_xml_file(xml_file_1)
 
         lbs = t1.xpath("//lb")
         xml_strg = etree.tostring(t1)
-        lst = []
+        d = glg.split_on_lbs(xml_strg)
 
-        for idx, lb in enumerate(lbs):
-            lb1 = lb
-            print (idx)
-            print (idx < len(lbs))
-            if idx < len(lbs)-1:
-                lb2 = lbs[idx+1]
-                rest_strg = glg.slice_strg(xml_strg, etree.tostring(lb1))[1]
-                line_strg = glg.slice_strg(rest_strg, etree.tostring(lb2))[0]
-                lst.append(glg.generate_valid_xml_line(line_strg, lb1, lb2))
-            elif idx == len(lbs)-1:
-                rest_strg = glg.slice_strg(xml_strg, etree.tostring(lb1))[1]
-                lst.append(glg.generate_valid_xml_line(rest_strg, lb1))
+        #test amount lbs in dictionary
+        num_lbs = len(d)
+        exp = 3
+        self.assertEqual(exp, num_lbs, "Error: "
+                        "expected result was the the number '{0}',"
+                        "but was: {1}".format(exp, num_lbs))
+        for lb in lbs:
+            in_lst = lb.attrib["{%s}id" % xml_ns] in d
+            self.assertTrue(in_lst, "Error: "
+                        "the key '{0}' is not in the dictionary of"
+                        " linebreaks".format(lb.attrib["{%s}id" % xml_ns]))
+        res = etree.fromstring(d["lb3"])
+        self.assertEqual("line", res.tag, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format("line", res.tag))
+        #test amount child elements
+        res_num_child = len(res.getchildren())
+        exp = 3
+        self.assertEqual(exp, res_num_child, "Error: "
+                        "expected result was the the number '{0}',"
+                        "but was: {1}".format(exp, res_num_child))
+        #test text of first child
+        res_w = res.getchildren()[0]
+        res_w_text = res_w.getchildren()[0].tail
+        exp = "er"
+        self.assertEqual(exp, res_w_text, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res_w_text))
+        #test child of first child
+        res_w = res.getchildren()[0]
+        res_w_g = res_w.getchildren()[0]
+        res_w_g_text = res_w_g.text
+        exp = "P"
+        self.assertEqual(exp, res_w_g_text, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res_w_g_text))
+        #test attr @lemma
+        res_w_lemma = res.getchildren()[0].attrib["lemma"]
+        exp = "per"
+        self.assertEqual(exp, res_w_lemma, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res_w_lemma))
+
+
+
         
-        print(lst)
+
+    def test_generate_valid_xml_line(self):
+        t1 = etree.fromstring("""<text>
+                                <lb/>
+                                <w xml:id="w1" lemma="pro" type="prep">First word</w>
+                                <w xml:id="w2" lemma="venire" type="verb">Second word</w>
+                                <lb/>
+                                </text>""")
+
+        lbs = t1.xpath("//lb")
+        strg = """<w xml:id="w1" lemma="pro" type="prep">First word</w>
+                <w xml:id="w2" lemma="venire" type="verb">Second word</w>
+                """
+                                
+        res = etree.fromstring(glg.generate_valid_xml_line(strg, lbs[0], lbs[1]))
+        """The expected result is:
+        <line>
+            <w xml:id="w1" lemma="pro" type="prep">First word</w>
+            <w xml:id="w2" lemma="venire" type="verb">Second word</w>
+        </line>
+        """
+        self.assertEqual("line", res.tag, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format("line", res.tag))
+        #test amount child elements
+        res_num_child = len(res.getchildren())
+        exp = 2
+        self.assertEqual(exp, res_num_child, "Error: "
+                        "expected result was the the number '{0}',"
+                        "but was: {1}".format(exp, res_num_child))
+        #test text of first child
+        res_w_text = res.getchildren()[0].text
+        exp = "First word"
+        self.assertEqual(exp, res_w_text, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res_w_text))
+        #test attr @lemma
+        res_w_lemma = res.getchildren()[0].attrib["lemma"]
+        exp = "pro"
+        self.assertEqual(exp, res_w_lemma, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res_w_lemma))
+        ##### test lb in word #####
+        t2 = etree.fromstring("""<text>
+                                <w xml:id="w1" lemma="pro" type="prep">First<lb/>word</w>
+                                <w xml:id="w2" lemma="venire" type="verb">Second word</w>
+                                <lb/>
+                                </text>""")
+
+        lbs = t2.xpath("//lb")
+        strg = """word</w>
+                <w xml:id="w2" lemma="venire" type="verb">Second word</w>
+                """
+        res = etree.fromstring(glg.generate_valid_xml_line(strg, lbs[0], lbs[1]))
+        """Expected result is:
+            <line>
+                <w xml:id="w2" lemma="venire" type="verb">Second word</w>
+            </line>
+            """
         
+        #test amount child elements
+        res_num_child = len(res.getchildren())
+        exp = 1
+        self.assertEqual(exp, res_num_child, "Error: "
+                        "expected result was the the number '{0}',"
+                        "but was: {1}".format(exp, res_num_child))
+        #test text of first child
+        res_w_text = res.getchildren()[0].text
+        exp = "Second word"
+        self.assertEqual(exp, res_w_text, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res_w_text))
+        #test attr @lemma
+        res_w_lemma = res.getchildren()[0].attrib["lemma"]
+        exp = "venire"
+        self.assertEqual(exp, res_w_lemma, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res_w_lemma))
+
+        ##### test end linebreak #####
+        t3 = etree.fromstring("""<tei><text>
+                                <w xml:id="w1" lemma="pro" type="prep">First<lb/>word</w>
+                                <w xml:id="w2" lemma="venire" type="verb">Second word</w>
+                                </text></tei>""")
+        lbs = t3.xpath("//lb")
+        strg = """word</w>
+                <w xml:id="w2" lemma="venire" type="verb">Second word</w></text></tei>
+                """
+        res = etree.fromstring(glg.generate_valid_xml_line(strg, lbs[0]))
+        """Expected result is:
+            <line>
+                <w xml:id="w2" lemma="venire" type="verb">Second word</w>
+            </line>
+            """
+        #test amount child elements
+        res_num_child = len(res.getchildren())
+        exp = 1
+        self.assertEqual(exp, res_num_child, "Error: "
+                        "expected result was the the number '{0}',"
+                        "but was: {1}".format(exp, res_num_child))
+        #test text of first child
+        res_w_text = res.getchildren()[0].text
+        exp = "Second word"
+        self.assertEqual(exp, res_w_text, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res_w_text))
+        #test attr @lemma
+        res_w_lemma = res.getchildren()[0].attrib["lemma"]
+        exp = "venire"
+        self.assertEqual(exp, res_w_lemma, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res_w_lemma))
+
         
-    
+
+    def test_remove_closing_tag(self):
+        strg = "<w>remove the text element</w></text>"
+
+        result_strg = glg.remove_closing_tag(strg)
+
+        self.assertEqual("<w>remove the text element</w>", result_strg, "Error: "
+                        "expected result was the string '<w>remove the text element</w>',"
+                        "but was: {0}".format(result_strg))
+
+        strg2 = ""
+        res = glg.remove_closing_tag(strg2)
+        exp = ""
+        self.assertEqual(res, exp, "Error: "
+                        "expected result was the string '{0}',"
+                        "but was: {1}".format(exp, res))
+        
+
+    def test_compare_root_element(self):
+        #trailing end-tag without start tag
+        strg = """<w xml:id="w1" lemma="pro" type="prep">First<lb/>word</w></text>"""
+        res = glg.compare_root_element(strg)
+        self.assertFalse(res, "Error: "
+                        "expected result for string '<w>remove the text element</w></text>' was False,"
+                        "but was: {0}".format(res))
+        #correct root element
+        strg = """<text type="root"><w xml:id="w1" lemma="pro" type="prep">First<lb/>word</w></text>"""
+        res = glg.compare_root_element(strg)
+        self.assertTrue(res, "Error: "
+                        "expected result for string '<text><w>remove the text element</w></text>' was True,"
+                        "but was: {0}".format(res))
+        #only one element with text
+        strg = """<w xml:id="w2" lemma="venire" type="verb">Second word</w>"""
+        res = glg.compare_root_element(strg)
+        self.assertTrue(res, "Error: "
+                        "expected result for string '<w xml:id=\"w2\" lemma=\"venire\" type=\"verb\">Second word</w>' was True,"
+                        "but was: {0}".format(res))
+        #empty string
+        strg = ""
+        res = glg.compare_root_element(strg)
+        self.assertTrue(res, "Error: "
+                        "expected result for an empty string was True,"
+                        "but was: {0}".format(res))
+      
 
 if __name__ == "__main__":
     unittest.main()

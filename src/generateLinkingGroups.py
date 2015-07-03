@@ -51,22 +51,76 @@ def generate_valid_xml(strg, tag_lst):
             print e
             
             continue
+
+def contains_xml_tags(strg):
+
+    pat = r"<\/\w+>"
+
+    r = re.findall(pat, strg)
+    if r:
+        return True
+    else:
+        return False
+
+
+def remove_closing_tag(strg):
+    strg = strg.strip()
+    try:
+        pat = r"<\/\w+>"
+        r = re.findall(pat, strg)
+        if not r:
+            return strg
+        tag = r[-1]
+        l = len(tag)
+        if strg[-l:] == tag:
+            return strg[:-l]
+        else:
+            print("Tag does not match end of string.")
+            print("Tag: {}".format(tag))
+            return strg
+    except TypeError as e:
+        print e
+        print "Param strg was: {}".format(strg)
+    except IndexError as e:
+        print "Param r was: {}".format(r)
+        print e
+        raise IndexError
+        
+
+def compare_root_element(strg):
+    strg = strg.strip()
+    if strg == "":
+        return True
+    try:
+        pat = r"<\/\w+>"
+        r = re.findall(pat, strg)
+        close_tag = r[-1]
+        start_tag = "<" + close_tag[2:-1]
+        l = len(start_tag)
+        if strg[:l] == start_tag:
+            return True
+        else:
+            return False
+    except TypeError as e:
+        print e
+        print "Param strg was: {}".format(strg)
+    except IndexError as e:
+        print e
+        print "Param r was: {}".format(r)
+        
     
 
 def generate_valid_xml_line(line_strg, lb1, lb2=None):
     p1 = lb1.getparent() 
 
+    #Error handling in case if the lbs are not correctly nested
     if p1.tag not in ["text", "w"]:
         print("Error: lb {} is not correctly nested!".format(lb1.attrib["{%s}id" % xml_ns]))
         print(p1.tag)
     else:
         if p1.tag == "w":
-            pline = p1.getparent()
-            line_strg = """<w xml:id="{0}" lemma="{1}"
-                        type="{2}">{3}""".format(p1.attrib["{%s}id" % xml_ns],
-                                                 p1.attrib["lemma"],
-                                                 p1.attrib["type"],
-                                                 line_strg)
+            lst = re.split("</w>", line_strg)
+            line_strg = "</w>".join(lst[1:])
         
     if lb2 is not None:
         p2 = lb2.getparent()
@@ -74,35 +128,58 @@ def generate_valid_xml_line(line_strg, lb1, lb2=None):
             print("Error: lb {} is not correctly nested!".format(lb1.attrib["{%s}id" % xml_ns]))
             print(p2.tag)
         if p2.tag == "w":
-            line_strg = """{0}</w>""".format(line_strg)
-    
-            
-    return """<line>{0}</line>""".format(line_strg)
+            line_strg = """{0}</w>""".format(line_strg.strip())
 
+    #print(line_strg)
+    if isinstance(line_strg, str) and contains_xml_tags(line_strg):
+        while(not compare_root_element(line_strg)):
+            line_strg = remove_closing_tag(line_strg)
+
+        return """<line>{0}</line>""".format(line_strg)
+    else:
+        print("Error: The variable line_strg is {}, but should be a string".format(line_strg))
+        return """<line>{0}</line>""".format(line_strg)
+
+def split_on_lbs(strg, lb_pat="//lb"):
+    """@param lb_pat should be an XPath expression addressing a lb"""
+    lines = {}
+    t = etree.fromstring(strg)
+    lbs = t.xpath(lb_pat)
+    
+    for idx, lb1 in enumerate(lbs):
+        if idx < len(lbs)-1:
+            lb2 = lbs[idx+1]
+            after = slice_strg(strg, etree.tostring(lb1))[1]
+            before = slice_strg(after, etree.tostring(lb2))[0]
+            lines[lb1.attrib["{%s}id" % xml_ns]] = generate_valid_xml_line(before, lb1, lb2)
+        elif idx == len(lbs)-1:
+            after = slice_strg(strg, etree.tostring(lb1))[1]
+            lines[lb1.attrib["{%s}id" % xml_ns]] = generate_valid_xml_line(after, lb1)
+        else:
+            print("Error: The variable idx should be < or == to len(lbs)") 
+    return lines
+
+    
 
 
 
 if __name__ == '__main__':
     xml_files = []
+    xslt_file = ""
 
-    wit = {}
-    for x in xml_files:
-        tree = open_xml_file(x)
-        lbs = tree.xpath("\\lb[@ed='White']")
+    for xml_file in xml_files:
+        tei = open_xml_file(xml_file)
+        xslt = open_xml_file(xslt_file)
+        res_tree = apply_xslt(tei, xslt)
 
-        wit[x] = {}
-        for idx, lb in enumerate(lbs):
+        d = split_on_lbs(etree.tostring(res_tree, "//lb[@ed='White'"))
 
-            with open(x, "r") as f:
-                xml_strg = f.read()
-                rest_strg = slice_strg(xml_strg, etree.tostring(lb))[1]
-                line_strg = slice_strg(rest_strg, etree.tostring(lbs[idx+1]))[0]
+        print len(d)
+            
 
-            following_lb = lbs[idx+1]
+    
 
-            line_strg = generate_valid_xml_line(lb, following_lb)
- 
-            wit[x][lb.attrib["xml:id"]] = line_strg
+    
 
             
 
