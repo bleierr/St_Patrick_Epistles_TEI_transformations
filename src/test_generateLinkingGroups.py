@@ -15,11 +15,11 @@ xml_1 = """<?xml version="1.0" encoding="UTF-8" ?>
             <tei>
                 <header><title>example text 1</title></header>
                 <text>
-                    <lb xml:id="lb1" ed="white"/>
+                    <lb xml:id="lb1"/>
                     <w xml:id="w1-1" lemma="per" type="prep">per</w>
-                    <lb xml:id="lb2" ed="white"/>
+                    <lb xml:id="lb2"/>
                     <w xml:id="w1-2" lemma="nomen" type="noun">nomen</w>
-                    <lb xml:id="lb3" ed="white"/>
+                    <lb xml:id="lb3"/>
                     <w xml:id="w1-3" lemma="per" type="prep"><g>P</g>er</w>
                     <w xml:id="w1-4" lemma="rusticus" type="adj"><g>r</g>usticus</w>
                     <w xml:id="w1-5" lemma="unknown" type="unknown">patricii</w>
@@ -32,12 +32,12 @@ xml_2 = """<?xml version="1.0" encoding="UTF-8" ?>
             <tei>
                 <header><title>example text 1</title></header>
                 <text>
-                    <lb xml:id="lb1" ed="white"/>
+                    <lb xml:id="lb1"/>
                     <w xml:id="w2-1" lemma="per" type="prep">per</w>
                     <w xml:id="w2-2" lemma="Patricius" type="name">Patricius</w>
-                    <lb xml:id="lb2" ed="white"/>
+                    <lb xml:id="lb2"/>
                     <w xml:id="w2-3" lemma="nomen" type="noun">nominis</w>
-                    <lb xml:id="lb3" ed="white"/>
+                    <lb xml:id="lb3"/>
                     <w xml:id="w2-4" lemma="unknown" type="unknown">per</w>
                     <w xml:id="w2-5" lemma="rusticus" type="adj">rusticussimus</w>
                 </text>
@@ -113,7 +113,7 @@ class Test(unittest.TestCase):
         
     
     def test_slice_strg(self):
-        pat = """<lb xml:id="lb\d" ed="\w+"/>"""
+        pat = """<lb xml:id="lb\d"/>"""
         with open(xml_file_1, "r") as f:
             strgs = glg.slice_strg(f.read(), pat)
         self.assertTrue(isinstance(strgs, list), "The variable strgs should be a list, but is: {}".format(strgs))
@@ -127,7 +127,8 @@ class Test(unittest.TestCase):
         
     def test_apply_xslt(self):
         t1 = glg.open_xml_file(xml_file_1)
-        x = glg.apply_xslt(t1, xslt_1)
+        xslt_root = etree.XML(xslt_1)
+        x = glg.apply_xslt(t1, xslt_root)
         self.assertTrue(isinstance(x, etree._XSLTResultTree), "The variable x should be a lxml _XSLTResultTree, but is: {}".format(x))
         w13 = x.xpath("//w")[2]
         self.assertEqual("w", w13.tag, "Error: the element tag of p13 should be 'w', but is: {0}".format(w13.tag))
@@ -348,7 +349,103 @@ class Test(unittest.TestCase):
         self.assertTrue(res, "Error: "
                         "expected result for an empty string was True,"
                         "but was: {0}".format(res))
-      
+        
+    def test_similar_element_in_lst(self):
+        line = """<line>
+            <w xml:id="w1" lemma="pro" type="prep">pro</w>
+            <w xml:id="w2" lemma="venire" type="verb">uenit</w>
+            <w xml:id="w3" lemma="a" type="prep">a</w>
+            <w xml:id="w4" lemma="pre" type="prep">pre</w>
+            <w xml:id="w5" lemma="venire" type="verb">uenio</w>
+            </line>"""
+        t = etree.fromstring(line)
+        lst = [w for w in t]
+        ele = etree.fromstring("""<w xml:id="w4" lemma="pre" type="prep">pre</w>""")
+        
+        res = glg.similar_element_in_lst(lst, ele)
+        self.assertEqual(res, [3], "Error: testing the word 'pre'"
+                        "expected is the number 1, but got {0}".format(res))
+        
+        ele = etree.fromstring("""<w xml:id="w2" lemma="venire" type="verb">uentum</w>""")
+        
+        res = glg.similar_element_in_lst(lst, ele)
+        self.assertEqual(res, [1, 4], "Error: testing the @lemma "
+                        "expected is the number 1, but got {0}".format(res))
+        
+        ele = etree.fromstring("""<w xml:id="w2" lemma="unknown" type="verb">uentum</w>""")
+        
+        res = glg.similar_element_in_lst(lst, ele)
+        self.assertEqual(res, [1, 4], "Error: testing if @lemma='unknown' "
+                        "expected is the number 1, but got {0}".format(res))
+    
+    def test_compare_lines(self):
+        line1 = etree.fromstring("""<line>
+            <w xml:id="l1w1" lemma="pro" type="prep">pro</w>
+            <w xml:id="l1w2" lemma="venire" type="verb">uenit</w>
+            <w xml:id="l1w3" lemma="a" type="prep">a</w>
+            <w xml:id="l1w4" lemma="pre" type="prep">pre</w>
+            <w xml:id="l1w5" lemma="venire" type="verb">uenio</w>
+            </line>""")
+        
+        line2 = etree.fromstring("""<line>
+            <w xml:id="l2w1" lemma="pro" type="prep">pro</w>
+            <w xml:id="l2w2" lemma="venire" type="verb">uenit</w>
+            <w xml:id="l2w3" lemma="a" type="prep">a</w>
+            <w xml:id="l2w4" lemma="pre" type="prep">pre</w>
+            <w xml:id="l2w5" lemma="dico" type="verb">dico</w>
+            </line>""")
+            
+        line3 = etree.fromstring("""<line>
+            <w xml:id="l3w1" lemma="patricius" type="name">patricius</w>
+            <w xml:id="l3w2" lemma="venire" type="verb">uenit</w>
+            <w xml:id="l3w3" lemma="a" type="prep">a</w>
+            <w xml:id="l3w4" lemma="pre" type="prep">pre</w>
+            <w xml:id="l3w5" lemma="venire" type="verb">uenio</w>
+            </line>""")
+        
+        res = glg.compare_lines(line1, line2, line3)
+        
+        self.assertEqual(len(res[0]), 1, "Error: testing if the length of the first list (word 'patricius') "
+                        "expected is the number 1, but got {0}".format(len(res[0])))
+        
+        self.assertEqual(len(res[4]), 3, "Error: testing if the length of the fifth list (word 'pre') "
+                        "expected is the number 3, but got {0}".format(len(res[2])))
+        for lst in res[4]:
+            for e in lst:
+                self.assertTrue(e.text, "pre", "Error: testing if all elements in list 4 contain the same text, "
+                        "all should be 'pre', but got {0}".format(e))
+                
+        #Test multiple times same word in line, venio - venit
+        self.assertEqual(len(res[2]), 3, "Error: testing if the length of the third list (word 'uenit')"
+                        "expected is the number 3, but got {0}".format(len(res[2])))
+        self.assertEqual(len(res[6]), 2, "Error: testing if the length of the seventh list (word 'uenio')"
+                        "expected is the number 2, but got {0}".format(len(res[6])))
+        self.assertEqual(res[5][0].text, "dico", "Error: testing if the text of the sixth list (word 'dico')"
+                        "expected is the string 'dico, but got {0}".format(res[5][0].text))
+        
+
+    def test_generate_linking_groups(self):
+        line1 = etree.fromstring("""<line>
+            <w xml:id="l1w1" lemma="pro" type="prep">pro</w>
+            <w xml:id="l1w2" lemma="venire" type="verb">uenit</w>
+            <w xml:id="l1w3" lemma="a" type="prep">a</w>
+            <w xml:id="l1w4" lemma="pre" type="prep">pre</w>
+            <w xml:id="l1w5" lemma="venire" type="verb">uenio</w>
+            </line>""")
+        
+        line2 = etree.fromstring("""<line>
+            <w xml:id="l2w1" lemma="pro" type="prep">pro</w>
+            <w xml:id="l2w2" lemma="venire" type="verb">uenit</w>
+            <w xml:id="l2w3" lemma="a" type="prep">a</w>
+            <w xml:id="l2w4" lemma="pre" type="prep">pre</w>
+            <w xml:id="l2w5" lemma="dico" type="verb">dico</w>
+            </line>""")
+        
+        res = glg.compare_lines(line1, line2)
+        
+        s = glg.generate_linking_groups(res)
+        print s
+
 
 if __name__ == "__main__":
     unittest.main()
