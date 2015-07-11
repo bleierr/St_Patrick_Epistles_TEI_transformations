@@ -104,7 +104,7 @@ class Test(unittest.TestCase):
         e1 = etree.Element("p")
         e1.text = "some text"
         e2 = etree.Element("p")
-        e2.text = "some ext"
+        e2.text = "som ext"
         r = glg.compare_two_elements(e1, e2)
         self.assertFalse(r, "Error: function compare_two_elements with the param ({0}, {1}) should return False, but returned: {2}".format(e1.text, e2.text, r))
         e2.text = "some text"
@@ -157,7 +157,7 @@ class Test(unittest.TestCase):
             self.assertTrue(in_lst, "Error: "
                         "the key '{0}' is not in the dictionary of"
                         " linebreaks".format(lb.attrib["{%s}id" % xml_ns]))
-        res = etree.fromstring(d["lb3"])
+        res = d["lb3"]
         self.assertEqual("line", res.tag, "Error: "
                         "expected result was the string '{0}',"
                         "but was: {1}".format("line", res.tag))
@@ -377,6 +377,11 @@ class Test(unittest.TestCase):
         res = glg.similar_element_in_lst(lst, ele)
         self.assertEqual(res, [1, 4], "Error: testing if @lemma='unknown' "
                         "expected is the number 1, but got {0}".format(res))
+        #Error handling if None is provided
+        res = glg.similar_element_in_lst(lst, None)
+        self.assertEqual(res, None, "Error: testing if wrong type of parameter is detected "
+                        "expected is the return value 'None', but got {0}".format(res))
+        
     
     def test_compare_lines(self):
         line1 = etree.fromstring("""<line>
@@ -403,7 +408,9 @@ class Test(unittest.TestCase):
             <w xml:id="l3w5" lemma="venire" type="verb">uenio</w>
             </line>""")
         
-        res = glg.compare_lines(line1, line2, line3)
+        l = [line1, line2, line3]
+        
+        res = glg.compare_lines(*l)
         
         self.assertEqual(len(res[0]), 1, "Error: testing if the length of the first list (word 'patricius') "
                         "expected is the number 1, but got {0}".format(len(res[0])))
@@ -444,7 +451,6 @@ class Test(unittest.TestCase):
         res = glg.compare_lines(line1, line2)
         
         s = glg.generate_linking_groups(res)
-        print s
 
 
 if __name__ == "__main__":

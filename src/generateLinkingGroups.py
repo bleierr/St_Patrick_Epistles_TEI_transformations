@@ -6,6 +6,8 @@ Created on 1 Jul 2015
 from lxml import etree
 from StringIO import StringIO
 import re, os
+from types import NoneType
+from string import lower
 
 xml_ns = "http://www.w3.org/XML/1998/namespace"
 
@@ -29,38 +31,54 @@ def open_xml_file(xml_file):
 def compare_two_elements(e1, e2):
     #comparison of elements
     #they do not have to be identical
+    if isinstance(e1.text, NoneType) or isinstance(e2.text, NoneType):
+        if not isinstance(e1.text, NoneType):
+            error_log.append(("NoneTypeError: {}, other element is NoneType".format(e1.attrib["{%s}id" % xml_ns])))
+        elif not isinstance(e2.text, NoneType):
+            error_log.append(("NoneTypeError: {}, other element is NoneType".format(e2.attrib["{%s}id" % xml_ns])))
+        return False
     try: 
-        if e1.text == e2.text:
+        if lower(e1.text) == lower(e2.text):
             return True
-        elif e1.attrib["lemma"] == e2.attrib["lemma"]:
-            if e1.text[:2] == e2.text[:2]:
-                return True
-            else:
-                error_log.append((e1.attrib["{%s}id" % xml_ns], e2.attrib["{%s}id" % xml_ns])) 
-                return True
+        elif lower(e1.text[:4]) == lower(e2.text[:4]):
+            return True
+        elif lower(e1.attrib["lemma"]) == lower(e2.attrib["lemma"]):
+            error_log.append("Lemma same, but text not: {0}, {1}".format(e1.attrib["{%s}id" % xml_ns], e2.attrib["{%s}id" % xml_ns]))
+            return True
         elif e1.attrib["lemma"] == "unknown" and (e1.text[:2] == e2.text[:2]):
-            error_log.append(("@lemma is unknown", e1.attrib["{%s}id" % xml_ns])) 
+            error_log.append("{0}, {1}".format("@lemma is unknown", e1.attrib["{%s}id" % xml_ns]))
             return True
         elif e2.attrib["lemma"] == "unknown" and (e1.text[:2] == e2.text[:2]):
-            error_log.append(("@lemma is unknown", e2.attrib["{%s}id" % xml_ns])) 
+            error_log.append("{0}, {1}".format("@lemma is unknown", e2.attrib["{%s}id" % xml_ns]))
             return True
         else:
             return False
     except KeyError:
         try:
-            error_log.append((e1.attrib["{%s}id" % xml_ns], e2.attrib["{%s}id" % xml_ns]))
+            error_log.append("{0}, {1}".format(e1.attrib["{%s}id" % xml_ns], e2.attrib["{%s}id" % xml_ns]))
         except KeyError:
-            error_log.append(("xml:id error", e1.text, e2.text))
+            error_log.append("{0}, {1}".format("xml:id error", e1.text, e2.text))
         
 
 def similar_element_in_lst(lst, ele):
     #returns the position of the element
+    #test that all elements are of class lxml.element
+    if not isinstance(ele, etree._Element) or not isinstance(lst, list):
+        print "Error in function similar_element_in_lst: param @ele or @lst are not of type etree._Element"
+        return None
+    
+    for idx, e in enumerate(lst):
+        if not isinstance(e, etree._Element) or not e.tag == "w":
+            print "Error in function similar_element_in_lst: item {0} in list is not of type etree._Element".format(idx)
+            return None
+    
+    
     loc = []
     for idx, item in enumerate(lst):
         if compare_two_elements(item, ele):
             loc.append(idx)
     if len(loc) == 0:
-        return None
+        return loc
     elif len(loc)>0:
         return loc       
     else:
@@ -78,60 +96,77 @@ def compare_lines(*lines):
         else:
             for idx, ele in enumerate(line):
                 if ele.tag == "w": 
+                    
                     locs = similar_element_in_lst([m[0] for m in matches], ele)
                     
                     if not locs:
                         matches = matches[:idx] + [[ele]] + matches[idx:]
                     else:
-                        locs_in_line = similar_element_in_lst(line, ele)
-                    if ele == line[locs_in_line[0]]:
-                        if len(locs) == 1:
-                            matches[locs[0]].append(ele)
-                        elif len(locs) > 1:
-                            
-                            if len(locs_in_line) == len(locs):
-                                for i, l in enumerate(locs):
-                                    matches[l].append(line[locs_in_line[i]])
-                            elif len(locs_in_line) > len(locs):
-                                dif = len(locs_in_line) - len(locs)
-                                for i, l in enumerate(locs):
-                                    matches[l].append(line[i]) 
-                                for lil in locs_in_line[-dif:]:
-                                    matches = matches[:lil] + [[ele]] + matches[lil:]
-                            elif len(locs_in_line) < len(locs):
-                                dif = len(locs_in_line) - len(locs)
-                                for i, l in enumerate(locs[:-dif]):
-                                    matches[l].append(line[locs_in_line[i]])
-                            else:
-                                print "Something is wrong in function compare lines"
-                        
-                        
+                        locs_in_line = similar_element_in_lst([w for w in line], ele)
+                        if isinstance(locs_in_line, list):
+                            if len(locs_in_line) > 0:
+                                if ele == line[locs_in_line[0]]:
+                                    if len(locs) == 1:
+                                        matches[locs[0]].append(ele)
+                                    elif len(locs) > 1:
+                                        
+                                        if len(locs_in_line) == len(locs):
+                                            for i, l in enumerate(locs):
+                                                matches[l].append(line[locs_in_line[i]])
+                                        elif len(locs_in_line) > len(locs):
+                                            dif = len(locs_in_line) - len(locs)
+                                            for i, l in enumerate(locs):
+                                                matches[l].append(line[i]) 
+                                            for lil in locs_in_line[-dif:]:
+                                                matches = matches[:lil] + [[ele]] + matches[lil:]
+                                        elif len(locs_in_line) < len(locs):
+                                            dif = len(locs) - len(locs_in_line)
+                                            for i, l in enumerate(locs[:-dif]):
+                                                matches[l].append(line[locs_in_line[i]])
+                                        else:
+                                            print "Something is wrong in function compare lines"
     return matches                
                 
                         
             
 def generate_linking_groups(matches, file_name=None):
-    if not file_name:
-        res_strg = ""
-    
-    
-    for m in matches:
-        strg = "{0}: {1}\n"
-        strg = strg.format(", ".join([e.text for e in m]), ", ".join([e.attrib["{%s}id" % xml_ns] for e in m]))
-        
-        if file_name:
-            if os.path.isfile(file_name):
-                with open(file_name, "w") as f:
-                    f.write(strg)
+    root = etree.Element("linkGrp")
+    #print(matches)
+    for idx, m in enumerate(matches):
+        if isinstance(m, list):
+            link = etree.Element("link")
+            comment = ["comment"]
+            ref_strg = []
+            if m[0].tag == "lb":
+                root.append(m[0])
+                for e in m[1:]:
+                    ref_strg.append(e.attrib["{%s}id" % xml_ns])
+                    comment.append("linebreak")
+                if len(ref_strg) > 0:
+                    link.attrib["ref"] = " ".join(ref_strg)
             else:
-                print("Error: the variable 'file_name' is no valid file_name")
-        else:
-            res_strg += strg
+                print("Matchline without lb element!!!")
+                for e in m:
+                    ref_strg.append(e.attrib["{%s}id" % xml_ns])
+                    if isinstance(e.text, str): 
+                        comment.append(e.text)
+                    else:
+                        error_log.append("Element {} is NoneType".format(e.attrib["{%s}id" % xml_ns]))
+                link.attrib["ref"] = " ".join(ref_strg)
+            root.append(link)
+            #add comment
+            root.append(etree.Comment(", ".join(comment)))
+                
+            
+            
+    if file_name:
+        with open(file_name, "w") as f:
+            f.write(etree.tostring(root))
+            
+    print("Linking groups have been written to file: {0}".format(file_name))
+    return etree.tostring(root)
     
-    if not file_name:       
-        return res_strg
-    else:
-        print("Linking groups have been written to file: ".format(file_name))
+        
             
         
             
@@ -266,16 +301,18 @@ def split_on_lbs(strg, lb_pat="//lb"):
             lb2 = lbs[idx+1]
             after = slice_strg(strg, etree.tostring(lb1))[1]
             before = slice_strg(after, etree.tostring(lb2))[0]
-            lines[lb1.attrib["{%s}id" % xml_ns]] = generate_valid_xml_line(before, lb1, lb2)
+            lines[lb1.attrib["{%s}id" % xml_ns]] = etree.fromstring(generate_valid_xml_line(before, lb1, lb2))
         elif idx == len(lbs)-1:
             after = slice_strg(strg, etree.tostring(lb1))[1]
-            lines[lb1.attrib["{%s}id" % xml_ns]] = generate_valid_xml_line(after, lb1)
+            lines[lb1.attrib["{%s}id" % xml_ns]] = etree.fromstring(generate_valid_xml_line(after, lb1))
         else:
             print("Error: The variable idx should be < or == to len(lbs)") 
     return lines
 
     
-
+def print_errorlog(file_name):
+    with open(file_name, "w") as f:
+        f.write("\n".join(error_log))
 
 
 if __name__ == '__main__':
@@ -290,7 +327,10 @@ if __name__ == '__main__':
     #print(os.getcwd())
     
     
-    xml_files = ["dublin_tcd_library_ms_52", "london_british_library_ms_cotton_nero_E1"] 
+    xml_files = ["dublin_tcd_library_ms_52", 
+                 "london_british_library_ms_cotton_nero_E1",
+                 "paris_BnF_ms_lat17626"
+                 ] 
     xslt_file = os.sep.join(path[:-1]) + os.sep + "makeLinkingGroups.xsl"
     
     #print(os.path.isfile(xslt_file))
@@ -308,18 +348,23 @@ if __name__ == '__main__':
         #namespaces = {'tei' : 'http://www.tei-c.org/ns/1.0'}
         d = split_on_lbs(etree.tostring(res_tree), "//lb")
         wit_lst.append(d)
-        print len(d)
+        #print len(d)
     
-       
+    matches = []
     lbs = res_tree.xpath("//lb")
-    print(len(lbs))
     for lb in lbs:
-        lbid = lb.attrib["{%s}id" % xml_ns]
-        for w in wit_lst:
-            line = w[lbid]
-            compare_lines(etree.fromstring(line))
+        same_lines = []
+        for idx, w in enumerate(wit_lst):
+            same_lines.append(w[lb.attrib["{%s}id" % xml_ns]])
+        m = [[lb]] + compare_lines(*same_lines)
+        matches += m
         
-        
-        
+    file_name = os.sep.join(path[:-1]) + os.sep + "generatedLinkingGroups.xml"
+    print(file_name)
+    generate_linking_groups(matches, file_name)
+    
+    errorlog_file = os.sep.join(path[:-1]) + os.sep + "generatedLinkingGroups_error.log"
+    print_errorlog(errorlog_file)
+           
         
     print("Finish!")
