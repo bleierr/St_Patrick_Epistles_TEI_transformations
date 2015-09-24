@@ -33,9 +33,9 @@ def compare_two_elements(e1, e2):
     #they do not have to be identical
     if isinstance(e1.text, NoneType) or isinstance(e2.text, NoneType):
         if not isinstance(e1.text, NoneType):
-            error_log.append(("NoneTypeError: {}, other element is NoneType".format(e1.attrib["{%s}id" % xml_ns])))
+            error_log.append(("NoneTypeError: {0}, other element is NoneType {1}".format(e1.attrib["{%s}id" % xml_ns], e2.attrib["{%s}id" % xml_ns])))
         elif not isinstance(e2.text, NoneType):
-            error_log.append(("NoneTypeError: {}, other element is NoneType".format(e2.attrib["{%s}id" % xml_ns])))
+            error_log.append(("NoneTypeError: {0}, other element is NoneType {1}".format(e2.attrib["{%s}id" % xml_ns], e1.attrib["{%s}id" % xml_ns])))
         return False
     try: 
         if lower(e1.text) == lower(e2.text):
@@ -84,19 +84,38 @@ def similar_element_in_lst(lst, ele):
     else:
         print "Error: there is something wrong: {}".format(loc)
 
+def is_correct_line(line):
+    """
+    if the arg line is a valid line - an etree.Element line with subelements w - True is returned otherwise false
+    """
+    if isinstance(line, etree._Element):
+        if len(line) < 1:
+            return False
+        for e in line:
+            if isinstance(e, etree._Element):
+                if not e.tag == "w":
+                    return False
+            else:
+                return False
+    else:
+        return False
+    return True
+    
 
-def compare_lines(*lines):
+
+def compare_lines(line_id, *lines):
     #lines is a certain amount of etree xml objects containing lines
     matches = []
     for line in lines:
-        if len(matches) == 0:
-            for idx, ele in enumerate(line):
-                if ele.tag == "w":
-                    matches.append([ele])
+        if not is_correct_line(line):
+            error_log.append("is_correct_line function returned False for line {}".format(line_id))
         else:
-            for idx, ele in enumerate(line):
-                if ele.tag == "w": 
-                    
+            if len(matches) == 0:
+                for idx, ele in enumerate(line):
+                    if ele.tag == "w":
+                        matches.append([ele])
+            else:
+                for idx, ele in enumerate(line):
                     locs = similar_element_in_lst([m[0] for m in matches], ele)
                     
                     if not locs:
@@ -126,19 +145,27 @@ def compare_lines(*lines):
                                         else:
                                             print "Something is wrong in function compare lines"
     return matches                
-                
-                        
-            
+       
 def generate_linking_groups(matches, file_name=None):
-    root = etree.Element("linkGrp")
-    #print(matches)
+    root = etree.XML("""<?xml version="1.0" encoding="utf-8"?><!DOCTYPE linkGrp [
+    <!ELEMENT linkGrp (lb | link)*>
+    <!ELEMENT lb EMPTY>
+    <!ELEMENT link EMPTY>
+    <!ATTLIST lb xml:id ID #REQUIRED>
+    <!ATTLIST lb n CDATA #IMPLIED> 
+    <!ATTLIST link ref CDATA #IMPLIED>
+    ]>
+    <linkGrp></linkGrp>
+    """)
+    tree = etree.ElementTree(root)
+    linkGrp = tree.getroot()
     for idx, m in enumerate(matches):
         if isinstance(m, list):
             link = etree.Element("link")
             comment = ["comment"]
             ref_strg = []
             if m[0].tag == "lb":
-                root.append(m[0])
+                linkGrp.append(m[0])
                 for e in m[1:]:
                     ref_strg.append(e.attrib["{%s}id" % xml_ns])
                     comment.append("linebreak")
@@ -153,28 +180,16 @@ def generate_linking_groups(matches, file_name=None):
                     else:
                         error_log.append("Element {} is NoneType".format(e.attrib["{%s}id" % xml_ns]))
                 link.attrib["ref"] = " ".join(ref_strg)
-            root.append(link)
+            linkGrp.append(link)
             #add comment
-            root.append(etree.Comment(", ".join(comment)))
-                
-            
-            
+            linkGrp.append(etree.Comment(", ".join(comment)))
+         
     if file_name:
         with open(file_name, "w") as f:
-            f.write(etree.tostring(root))
+            f.write(etree.tostring(tree))
             
     print("Linking groups have been written to file: {0}".format(file_name))
-    return etree.tostring(root)
-    
-        
-            
-        
-            
-        
-        
-        
-    
-    
+    return etree.tostring(tree)
 
 def slice_strg(strg, pat):
     return re.split(pat, strg)
@@ -183,7 +198,6 @@ def apply_xslt(xml, xslt):
     #xslt_root = etree.XML(xslt)
     transform = etree.XSLT(xslt)
     return transform(xml)
-     
 
 def generate_valid_xml(strg, tag_lst):
     for tag in tag_lst:
@@ -211,84 +225,72 @@ def contains_xml_tags(strg):
 
 def remove_closing_tag(strg):
     strg = strg.strip()
-    try:
-        pat = r"<\/\w+>"
-        r = re.findall(pat, strg)
-        if not r:
-            return strg
-        tag = r[-1]
-        l = len(tag)
-        if strg[-l:] == tag:
-            return strg[:-l]
-        else:
-            print("Tag does not match end of string.")
-            print("Strg: {}".format(strg))
-            print("Tag: {}".format(tag))
-            return strg
-    except TypeError as e:
-        print e
-        print "Param strg was: {}".format(strg)
-    except IndexError as e:
-        print "Param r was: {}".format(r)
-        print e
-        raise IndexError
-        
-
+    
+    pat = r"<\/\w+>"
+    r = re.findall(pat, strg)
+    if not r:
+        return strg
+    tag = r[-1]
+    l = len(tag)
+    if strg[-l:] == tag:
+        return strg[:-l]
+    else:
+        print("Tag does not match end of string.")
+        print("Strg: {}".format(strg))
+        print("Tag: {}".format(tag))
+        return strg
+    
 def compare_root_element(strg):
     strg = strg.strip()
     if strg == "":
         return True
-    try:
-        pat = r"<\/\w+>"
-        r = re.findall(pat, strg)
-        close_tag = r[-1]
-        start_tag = "<" + close_tag[2:-1]
-        l = len(start_tag)
-        if strg[:l] == start_tag:
-            return True
-        else:
-            return False
-    except TypeError as e:
-        print e
-        print "Param strg was: {}".format(strg)
-    except IndexError as e:
-        print e
-        print "Param r was: {}".format(r)
-        
     
+    pat = r"<\/\w+>"
+    r = re.findall(pat, strg)
+    close_tag = r[-1]
+    start_tag = "<" + close_tag[2:-1]
+    l = len(start_tag)
+    if strg[:l] == start_tag:
+        return True
+    else:
+        return False  
+
+def test_lb_element(lb):
+    if lb == None:
+        return False
+    p = lb.getparent()
+    if lb.tag != "lb":
+        return False
+    
+    if p.tag not in ["text", "w"]:
+        print("Error: lb {} is not correctly nested!".format(lb.attrib["{%s}id" % xml_ns]))
+        print(p.tag)
+        return False
+    return True
 
 def generate_valid_xml_line(line_strg, lb1, lb2=None):
-    p1 = lb1.getparent() 
+    line_strg = line_strg.strip()
 
-    #Error handling in case if the lbs are not correctly nested
-    if p1.tag not in ["text", "w"]:
-        print("Error: lb {} is not correctly nested!".format(lb1.attrib["{%s}id" % xml_ns]))
-        print(p1.tag)
-    else:
+    p1 = lb1.getparent() 
+    if test_lb_element(lb1):
         if p1.tag == "w":
             lst = re.split("</w>", line_strg)
             line_strg = "</w>".join(lst[1:])
         
-    if lb2 is not None:
+    if test_lb_element(lb2):
         p2 = lb2.getparent()
-        if p2.tag not in ["text", "w"]:
-            print("Error: lb {} is not correctly nested!".format(lb1.attrib["{%s}id" % xml_ns]))
-            print(p2.tag)
         if p2.tag == "w":
-            line_strg = """{0}</w>""".format(line_strg.strip())
+            line_strg = """{0}</w>""".format(line_strg)
 
-    #print(line_strg)
-    if isinstance(line_strg, str) and contains_xml_tags(line_strg):
-        while(not compare_root_element(line_strg)):
-            line_strg = remove_closing_tag(line_strg)
-
-        return """<line>{0}</line>""".format(line_strg)
-    elif line_strg.strip() == "":
+    if line_strg == "":
         #empty string
         return """<line>{0}</line>""".format(line_strg)
+    elif isinstance(line_strg, str) and contains_xml_tags(line_strg):
+        while(not compare_root_element(line_strg)):
+            line_strg = remove_closing_tag(line_strg)
+        return """<line>{0}</line>""".format(line_strg) 
     else:
-        print("Error: The variable line_strg is {}, but should be a string".format(type(line_strg)))
-        
+        print("Error: The variable line_strg is {}, but should be a string".format(type(line_strg)))  
 
 def split_on_lbs(strg, lb_pat="//lb"):
     """@param lb_pat should be an XPath expression addressing a lb"""
@@ -308,29 +310,34 @@ def split_on_lbs(strg, lb_pat="//lb"):
         else:
             print("Error: The variable idx should be < or == to len(lbs)") 
     return lines
-
     
 def print_errorlog(file_name):
     with open(file_name, "w") as f:
         f.write("\n".join(error_log))
-
 
 if __name__ == '__main__':
     
     wit_lst = []
     
     #linux home
-    path = [os.sep + "home", "roman", "Dropbox", "XML", "Transcriptions", "Masterfiles"]
+    #path = [os.sep + "home", "roman", "Dropbox", "XML", "Transcriptions", "Masterfiles"]
+    #win home
+    path = ["C:", "Users", "Rombli", "Dropbox", "XML", "Transcriptions", "Masterfiles"]
     
     s = os.sep.join(path)
     #print(os.path.isdir(s))
     #print(os.getcwd())
-    
-    
+
+
+
     xml_files = ["dublin_tcd_library_ms_52", 
                  "london_british_library_ms_cotton_nero_E1",
-                 "paris_BnF_ms_lat17626"
-                 ] 
+                 "paris_BnF_ms_lat17626", 
+                 "arras_bm_ms_450",
+                 "rouen_bm_ms_1391", 
+                 "salisbury_cathedral_library_ms_221",
+                 "salisbury_cathedral_library_ms_223"                 
+                 ]  
     xslt_file = os.sep.join(path[:-1]) + os.sep + "makeLinkingGroups.xsl"
     
     #print(os.path.isfile(xslt_file))
@@ -356,7 +363,7 @@ if __name__ == '__main__':
         same_lines = []
         for idx, w in enumerate(wit_lst):
             same_lines.append(w[lb.attrib["{%s}id" % xml_ns]])
-        m = [[lb]] + compare_lines(*same_lines)
+        m = [[lb]] + compare_lines(lb.attrib["{%s}id" % xml_ns], *same_lines)
         matches += m
         
     file_name = os.sep.join(path[:-1]) + os.sep + "generatedLinkingGroups.xml"

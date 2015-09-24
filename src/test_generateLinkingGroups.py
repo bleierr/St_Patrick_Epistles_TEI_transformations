@@ -410,7 +410,9 @@ class Test(unittest.TestCase):
         
         l = [line1, line2, line3]
         
-        res = glg.compare_lines(*l)
+        id = "line x"
+        
+        res = glg.compare_lines(id, *l)
         
         self.assertEqual(len(res[0]), 1, "Error: testing if the length of the first list (word 'patricius') "
                         "expected is the number 1, but got {0}".format(len(res[0])))
@@ -451,6 +453,33 @@ class Test(unittest.TestCase):
         res = glg.compare_lines(line1, line2)
         
         s = glg.generate_linking_groups(res)
+        
+    def test_is_correct_line(self):
+        line1 = etree.fromstring("""<line>
+            <w xml:id="l1w1" lemma="pro" type="prep">pro</w>
+            <w xml:id="l1w2" lemma="venire" type="verb">uenit</w>
+            <w xml:id="l1w3" lemma="a" type="prep">a</w>
+            <w xml:id="l1w4" lemma="pre" type="prep">pre</w>
+            <w xml:id="l1w5" lemma="venire" type="verb">uenio</w>
+            </line>""")
+        line2 = etree.fromstring("<line></line>")
+        line3 = ""
+        line4 = etree.fromstring("""<line>
+            <seg xml:id="l1w1" lemma="pro" type="prep">pro</seg>
+            <w xml:id="l1w2" lemma="venire" type="verb">uenit</w>
+            <w xml:id="l1w3" lemma="a" type="prep">a</w>
+            <w xml:id="l1w4" lemma="pre" type="prep">pre</w>
+            <w xml:id="l1w5" lemma="venire" type="verb">uenio</w>
+            </line>""")
+        
+        res = glg.is_correct_line(line1)
+        self.assertTrue(res, "Error: the first line resulted to False, but should be True.")
+        res = glg.is_correct_line(line2)
+        self.assertFalse(res, "Error: the second line resulted to True, but should be False.")
+        res = glg.is_correct_line(line3)
+        self.assertFalse(res, "Error: the third line resulted to True, but should be False.")
+        res = glg.is_correct_line(line4)
+        self.assertFalse(res, "Error: the fourth line resulted to True, but should be False.")
 
 
 if __name__ == "__main__":
